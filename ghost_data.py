@@ -5,6 +5,7 @@ import sel4cp_spec
 import monitor_spec
 import microkit_spec
 from ghost_data_helpers import *
+import copy_spec
 
 
 def get(file_name: str, func_name: str) -> source.Ghost[source.ProgVarName | nip.GuardVarName] | None:
@@ -254,5 +255,6 @@ universe: Mapping[str, Mapping[str, source.Ghost[source.ProgVarName | nip.GuardV
             loop_iterations={},
             loop_invariants={}
         )
-    }
+    },
+    "examples/out_copy.txt": copy_spec.functions_spec
 }

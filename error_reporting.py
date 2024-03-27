@@ -410,7 +410,7 @@ def diagnose_error(func: dsa.Function, node_name: source.NodeName, prog: ap.Assu
         eprint(pretty_node(used_node_as_ap), style="magenta bold")
 
     succ_smtlib_with_model = smt.make_smtlib(
-        prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path.union(set(successors)), with_model=True)
+        prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path.union(set(successors)), with_model=True, extra_cmds=[])
 
     succ_model = send_smtlib_model(
         succ_smtlib_with_model, smt.Solver.Z3)
@@ -443,7 +443,7 @@ def debug_func_smt(func: dsa.Function, prelude_files: Sequence[str]) -> Tuple[Fa
         node = func.nodes[node_name]
         not_taken_path_and_node = not_taken_path.union(set([node_name]))
         node_smtlib = smt.make_smtlib(
-            prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path_and_node)
+            prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path_and_node, extra_cmds=[])
         consistent, node_sat = get_sat(node_smtlib)
         assert consistent
         # we do not care about the Err and Ret node
@@ -456,7 +456,7 @@ def debug_func_smt(func: dsa.Function, prelude_files: Sequence[str]) -> Tuple[Fa
         successors = list(
             filter(lambda x: x != source.NodeNameErr and x != source.NodeNameRet and ((node_name, x) not in func.cfg.back_edges), func.cfg.all_succs[node_name]))
         successors_smtlib = smt.make_smtlib(
-            prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path.union(set(successors)))
+            prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path.union(set(successors)), extra_cmds=[])
         _, successors_sat = get_sat(successors_smtlib)
 
         # len(successors) can be 0, 1 or 2.
@@ -509,7 +509,7 @@ def debug_func_smt(func: dsa.Function, prelude_files: Sequence[str]) -> Tuple[Fa
                 my_succs = list(filter(lambda x: x != source.NodeNameErr and x !=
                                        source.NodeNameRet, func.cfg.all_succs[node_name]))
                 my_succ_smtlib = smt.make_smtlib(
-                    prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path.union(set(my_succs)))
+                    prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path.union(set(my_succs)), extra_cmds=[])
                 my_succ_const, my_succ_sat = get_sat(my_succ_smtlib)
                 assert my_succ_const, "Expected to be consistent"
                 assert my_succ_sat == smt.CheckSatResult.UNSAT, "Expected to pass"
@@ -523,9 +523,9 @@ def debug_func_smt(func: dsa.Function, prelude_files: Sequence[str]) -> Tuple[Fa
             not_taken_path_and_succ1 = not_taken_path.union(set([node1]))
             not_taken_path_and_succ2 = not_taken_path.union(set([node2]))
             succ_node1_smtlib = smt.make_smtlib(
-                prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path_and_succ1)
+                prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path_and_succ1, extra_cmds=[])
             succ_node2_smtlib = smt.make_smtlib(
-                prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path_and_succ2)
+                prog, prelude_files=prelude_files, assert_ok_nodes=not_taken_path_and_succ2, extra_cmds=[])
             succ_node1_consistent, succ_node1_sat = get_sat(succ_node1_smtlib)
             succ_node2_consistent, succ_node2_sat = get_sat(succ_node2_smtlib)
             # for some reason, the C parser will emit nonsense such as (assert True) => cond(when False) => assume True => Err.

@@ -9,10 +9,12 @@ udiv = source.expr_udiv
 mul = source.expr_mul
 plus = source.expr_plus
 sub = source.expr_sub
+mod = source.expr_mod
 
 slt = source.expr_slt
 sle = source.expr_sle
 ule = source.expr_ule
+ult = source.expr_ult
 eq = source.expr_eq
 neq = source.expr_neq
 neg = source.expr_negate
@@ -22,10 +24,17 @@ F = source.expr_false
 
 ite = source.expr_ite
 
+bv8eq = source.bv8_expr_eq
+
+
+u8ret = source.ExprVar(source.type_word8, source.CRetSpecialVar("c_ret.0"))
+u8ret.name.field_num = 0
 
 i32ret = source.ExprVar(source.type_word32, source.CRetSpecialVar("c_ret.0"))
 i32ret.name.field_num = 0
-u32ret = source.ExprVar(source.type_word32, source.ProgVarName("ret__int#v"))
+
+u32ret = source.ExprVar(source.type_word32, source.CRetSpecialVar("c_ret.0"))
+u32ret.name.field_num = 0
 
 
 def conjs(*xs: source.ExprT[source.VarNameKind]) -> source.ExprT[source.VarNameKind]:
@@ -98,6 +107,10 @@ def charv(n: str) -> source.ExprVarT[source.ProgVarName]:
     return source.ExprVar(source.type_word8, source.ProgVarName(n + "___char#v"))
 
 
+def ucharv(n: str) -> source.ExprVarT[source.ProgVarName]:
+    return source.ExprVar(source.type_word8, source.ProgVarName(n + "___unsigned_char#v"))
+
+
 def char(n: int) -> source.ExprNumT:
     return source.ExprNum(source.type_word8, n)
 
@@ -118,3 +131,16 @@ def mem_acc(ty: source.Type, v: source.ExprT[source.ProgVarName], mem: source.Ex
 
     assert mem.typ == source.type_mem, "Mem typ is wrong"
     return source.ExprOp(ty, source.Operator.MEM_ACC, (mem, v, ))
+
+
+def mem_upd(ty: source.Type, loc: source.ExprT[source.ProgVarName], val: source.ExprT[source.ProgVarName], mem: source.ExprT[source.ProgVarName]) -> source.ExprT[source.ProgVarName]:
+    assert mem.typ == source.type_mem, "Mem typ is wrong"
+    if ty != val.typ:
+        print(ty, " != ", val.typ)
+        print(val)
+    assert ty == val.typ
+    return source.ExprOp(source.type_mem, source.Operator.MEM_UPDATE, (mem, loc, val, ))
+
+
+def ucast(ty: source.Type, e: source.ExprT[source.ProgVarName]) -> source.ExprT[source.ProgVarName]:
+    return source.ExprOp(ty, source.Operator.WORD_CAST, (e, ))

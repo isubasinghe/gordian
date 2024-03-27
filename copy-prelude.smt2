@@ -1,0 +1,5 @@
+(declare-fun rx_ring_mux@global-symbol () (_ BitVec 64))
+(declare-fun rx_ring_cli@global-symbol () (_ BitVec 64))
+(declare-fun cli_buffer_data_region@global-symbol () (_ BitVec 64))
+(declare-fun mux_buffer_data_region@global-symbol () (_ BitVec 64))
+(declare-fun blah@global-symbol () (_ BitVec 64))

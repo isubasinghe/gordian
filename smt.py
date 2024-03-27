@@ -42,7 +42,8 @@ ops_to_smt: Mapping[source.Operator, SMTLIB] = {
     source.Operator.WORD_ARRAY_ACCESS: SMTLIB("select"),
     source.Operator.WORD_ARRAY_UPDATE: SMTLIB("store"),
     source.Operator.MEM_DOM: SMTLIB("mem-dom"),
-    source.Operator.MEM_ACC: SMTLIB("mem-acc")
+    source.Operator.MEM_ACC: SMTLIB("mem-acc"),
+    source.Operator.MEM_UPDATE: SMTLIB("mem-update")
 }
 
 MEM_SORT = SMTLIB('(Array (_ BitVec 64) (_ BitVec 8))')
@@ -279,6 +280,7 @@ def emit_expr(expr: source.ExprT[assume_prove.VarName]) -> SMTLIB:
             assert isinstance(typ, source.ExprType), typ
             if isinstance(val, source.ExprSymbol):
                 return statically_infered_must_be_true
+            # return statically_infered_must_be_true
             raise NotImplementedError(
                 "PAlignValid for non symbols isn't supported")
 
@@ -466,7 +468,7 @@ def gen_mem_acc_prelude() -> SMTLIB:
     return SMTLIB(''.join(raw))
 
 
-def make_smtlib(p: assume_prove.AssumeProveProg, prelude_files: Sequence[str] = (), assert_ok_nodes: Collection[source.NodeName] = (), with_model: bool = False) -> SMTLIB:
+def make_smtlib(p: assume_prove.AssumeProveProg, extra_cmds: list[Cmd], prelude_files: Sequence[str] = (), assert_ok_nodes: Collection[source.NodeName] = (), with_model: bool = False) -> SMTLIB:
 
     # WARN: Please look at error_reporting.get_sat
     # before changing any of the smt emission code.
@@ -516,7 +518,8 @@ def make_smtlib(p: assume_prove.AssumeProveProg, prelude_files: Sequence[str] = 
     for node_ok_name, script in p.nodes_script.items():
         expr = assume_prove.apply_weakest_precondition(script)
         cmds.append(cmd_assert_eq(node_ok_name, expr))
-
+    for extra_cmd in extra_cmds:
+        cmds.append(extra_cmd)
     cmds.append(CmdCheckSat())
     if assert_ok_nodes is not None:
         for ok_node in assert_ok_nodes:
@@ -575,19 +578,19 @@ def send_smtlib(smtlib: SMTLIB, solver: Solver) -> Iterator[CheckSatResult]:
     """
 
     with open_temp_file(suffix='.smt2') as (f, fullpath):
+        print("FILE: ", fullpath)
         f.write(smtlib)
         f.close()
         p = subprocess.Popen(get_subprocess_file(
             solver, fullpath), stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        output, error = p.communicate()
         p.wait()
-    assert p.stderr is not None
-    assert p.stdout is not None
     if p.returncode != 0:
         print("stderr:")
-        print(textwrap.indent(p.stdout.read().decode('utf-8'), '   '))
+        print(textwrap.indent(error.decode('utf-8'), '   '))
         return
 
-    lines = p.stdout.read().splitlines()
+    lines = output.splitlines()
     for ln in lines:
         yield CheckSatResult(ln.decode('utf-8'))
 

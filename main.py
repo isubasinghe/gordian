@@ -20,6 +20,7 @@ import ghost_data
 import ghost_code
 
 import validate_dsa
+import eval_point as ep
 
 syntax.set_arch('rv64')
 
@@ -88,6 +89,10 @@ class CmdlineOption(Enum):
     """ Shows line numbers for the smt """
 
     SPLIT_PROVE_CONJUNCTIONS = "--split-prove-conjunctions"
+
+    EMIT_EVALS = "--eval"
+
+    QUIT_FAST = "--quit"
 
 
 def find_functions_by_name(function_names: Collection[str], target: str) -> str:
@@ -170,13 +175,17 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_DSA in options:
             viz_function(dsa_func)
 
+        extra_cmds = []
+        if CmdlineOption.EMIT_EVALS in options:
+            evals = ep.find_vars_for_eval(filename, name, dsa_func)
+            extra_cmds = ep.make_smt_commands(evals)
         validate_dsa.validate(ghost_func, dsa_func)
 
         prog = assume_prove.make_prog(dsa_func)
         if CmdlineOption.SHOW_AP in options:
             assume_prove.pretty_print_prog(prog)
 
-        smtlib = smt.make_smtlib(prog, prelude_files=preludes)
+        smtlib = smt.make_smtlib(prog, extra_cmds, prelude_files=preludes)
         if CmdlineOption.SHOW_SMT in options:
             if CmdlineOption.SHOW_LINE_NUMBERS in options:
                 lines = smtlib.splitlines()
@@ -199,6 +208,8 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
             exit(2)
         elif result is smt.VerificationResult.FAIL:
             print("verification failed (good luck figuring out why)", file=sys.stderr)
+            if CmdlineOption.QUIT_FAST in options:
+                exit(1)
             er.debug_func_smt(dsa_func, preludes)
             exit(1)
         else:
@@ -268,6 +279,10 @@ def main() -> None:
                         help="Show the ghost stage", default=False, action="store_true")
     parser.add_argument("-d", "--show-dsa", help="Show the graph after having applied dynamic single assignment",
                         default=False, action="store_true")
+    parser.add_argument("-e", "--eval", help="Emit evaluations", default=False,
+                        action="store_true")
+    parser.add_argument("-q", "--quit", help="Quit fast on failure", default=False,
+                        action="store_true")
     parser.add_argument("-a", "--show-ap", help="Show the assume prove prog",
                         default=False, action="store_true")
     parser.add_argument("-s", "--show-smt", help="Show the SMT given to the solvers",
@@ -314,6 +329,10 @@ def main() -> None:
         options.add(CmdlineOption.SHOW_SATS)
     if args.split_prove_conjunctions:
         options.add(CmdlineOption.SPLIT_PROVE_CONJUNCTIONS)
+    if args.eval:
+        options.add(CmdlineOption.EMIT_EVALS)
+    if args.quit:
+        options.add(CmdlineOption.QUIT_FAST)
     run(args.file, args.fnames, options, args.preludes)
 
 

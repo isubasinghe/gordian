@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Any, Callable, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar, Tuple
+from typing import Any, Callable, Dict, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar, Tuple
 import typing
 from typing_extensions import assert_never
 from provenance import *
@@ -11,6 +11,9 @@ import syntax
 
 if typing.TYPE_CHECKING:
     import nip
+
+import sys
+sys.setrecursionlimit(10000)
 
 
 class ProgVarName(str):
@@ -188,6 +191,7 @@ type_word16 = TypeBitVec(16)
 type_word32 = TypeBitVec(32)
 type_word52 = TypeBitVec(52)
 type_word64 = TypeBitVec(64)
+type_word128 = TypeBitVec(128)
 
 
 def convert_type(typ: syntax.Type) -> Type:
@@ -198,6 +202,8 @@ def convert_type(typ: syntax.Type) -> Type:
             return type_word32
         elif typ.num == 64:
             return type_word64
+        elif typ.num == 128:
+            return type_word128
         return TypeBitVec(typ.num)
     elif typ.kind == 'Ptr':
         assert typ.el_typ_symb is not None
@@ -580,6 +586,7 @@ expr_sub = mk_binary_bitvec_operation(Operator.MINUS)
 expr_udiv = mk_binary_bitvec_operation(Operator.DIVIDED_BY)
 expr_shift_left = mk_binary_bitvec_operation(Operator.SHIFT_LEFT)
 expr_shift_right = mk_binary_bitvec_operation(Operator.SHIFT_RIGHT)
+expr_mod = mk_binary_bitvec_operation(Operator.MODULUS)
 # don't implement expr_sdiv (cparser will never generate signed division)
 
 
@@ -587,6 +594,11 @@ def expr_ite(cond: ExprT[VarNameKind], yes: ExprT[VarNameKind], no: ExprT[VarNam
     assert yes.typ == no.typ
     assert cond.typ == type_bool
     return ExprOp(yes.typ, Operator.IF_THEN_ELSE, (cond, yes, no))
+
+
+def bv8_expr_eq(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
+    assert lhs.typ == rhs.typ
+    return expr_ite(expr_eq(lhs, rhs), ExprNum(type_word8, 1), ExprNum(type_word8, 0))
 
 
 def expr_negate(expr: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
@@ -959,6 +971,8 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
                           loop_iterations={
                               lh: empty_loop_ghost for lh in self.loops},
                           )
+        if self.loops.keys() != ghost.loop_invariants.keys():
+            print(self.loops.keys())
         assert self.loops.keys() == ghost.loop_invariants.keys(), "loop invariants don't match"
         return GenericFunction(name=self.name, variables=self.variables, nodes=self.nodes, loops=self.loops, signature=self.signature, cfg=self.cfg, ghost=ghost)
 
@@ -1075,7 +1089,8 @@ class SpecGhost:
 This should be loaded from a specification description (ie. a prelude and list
 of spec ghosts). This will be done in the stage mentionned above.
 """
-spec_ghosts: tuple[SpecGhost, ...] = (SpecGhost(name="test", bit_size=32), )
+spec_ghosts: tuple[SpecGhost, ...] = (SpecGhost(name="cli_addr", bit_size=64),
+                                      SpecGhost("mux_addr", bit_size=64), SpecGhost("mux_size", bit_size=16), SpecGhost("copied", bit_size=64), )
 # (SpecGhost(name="local_context", bit_size=408), )
 
 
@@ -1147,6 +1162,37 @@ def get_function_variables(func: GhostlessFunction[ProgVarName, Any], nodes: Map
     return s
 
 
+def can_reach(fn: GhostlessFunction[ProgVarName, Any], frm: NodeName, to: NodeName) -> bool:
+    if frm == to:
+        return True
+    for pred in fn.cfg.all_preds[frm]:
+        if (pred, frm) in fn.cfg.back_edges:
+            continue
+        if can_reach(fn, pred, to):
+            return True
+    return False
+
+
+def remove_unreachable(fn: GhostlessFunction[ProgVarName, Any]) -> GhostlessFunction[ProgVarName, Any]:
+    to_remove: Set[NodeName] = set()
+    for node in fn.nodes.keys():
+        if not can_reach(fn, node, fn.cfg.entry):
+            to_remove.add(node)
+
+    new_nodes: Dict[NodeName, Node[ProgVarName]] = {}
+    for (name_, node_) in fn.nodes.items():
+        if name_ not in to_remove:
+            new_nodes[name_] = node_
+
+    all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
+    cfg = abc_cfg.compute_cfg_from_all_succs(
+        all_succs, NodeName(str(fn.cfg.entry)))
+    loops = abc_cfg.compute_loops(new_nodes, cfg)
+    tmpfn: GhostlessFunction[ProgVarName, Any] = GhostlessFunction(cfg=cfg, variables=set(
+        []), nodes=new_nodes, loops=loops, signature=fn.signature, name=fn.name)
+    return tmpfn
+
+
 def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, Any]:
     safe_nodes = convert_function_nodes(func.nodes)
     all_succs = abc_cfg.compute_all_successors_from_nodes(safe_nodes)
@@ -1159,11 +1205,13 @@ def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, An
     metadata = convert_function_metadata(func)
 
     # fn without any variables obtained
-    tmpfn: GhostlessFunction[ProgVarName, Any] = GhostlessFunction(cfg=cfg, variables=set(
-        []), nodes=safe_nodes, loops=loops, signature=metadata, name=func.name)
+    tmpfn: GhostlessFunction[ProgVarName, Any] = remove_unreachable(GhostlessFunction(cfg=cfg, variables=set(
+        []), nodes=safe_nodes, loops=loops, signature=metadata, name=func.name))
+
+    del safe_nodes
 
     # Insert all variables here
-    variables = get_function_variables(tmpfn, safe_nodes)
+    variables = get_function_variables(tmpfn, tmpfn.nodes)
     variables.add(ExprVar(type_mem, ProgVarName('Mem')))
     variables.add(ExprVar(type_htd, ProgVarName('HTD')))
     variables.add(ExprVar(type_pms, ProgVarName('PMS')))
@@ -1177,4 +1225,4 @@ def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, An
         spec_var = mk_spec_ghost_var(spec_gh_var)
         variables.add(spec_var)
 
-    return GhostlessFunction(cfg=cfg, variables=variables, nodes=safe_nodes, loops=loops, signature=metadata, name=func.name)
+    return GhostlessFunction(cfg=tmpfn.cfg, variables=variables, nodes=tmpfn.nodes, loops=tmpfn.loops, signature=tmpfn.signature, name=func.name)
