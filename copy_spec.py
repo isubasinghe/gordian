@@ -1158,11 +1158,11 @@ functions_spec = {
             ),
             eq(
                 arg(mux_size_ghost),
-                mux_size_ghost 
+                mux_size_ghost
             ),
             eq(
                 arg(copied_ghost),
-                copied_ghost 
+                copied_ghost
             ),
             common_mem_wf(Mem)
         ),
