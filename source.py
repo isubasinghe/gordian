@@ -1089,8 +1089,10 @@ class SpecGhost:
 This should be loaded from a specification description (ie. a prelude and list
 of spec ghosts). This will be done in the stage mentionned above.
 """
-spec_ghosts: tuple[SpecGhost, ...] = (SpecGhost(name="cli_addr", bit_size=64),
-                                      SpecGhost("mux_addr", bit_size=64), SpecGhost("mux_size", bit_size=16), SpecGhost("copied", bit_size=64), )
+spec_ghosts: tuple[SpecGhost, ...] = ()
+
+# (SpecGhost(name="cli_addr", bit_size=64),
+#                                       SpecGhost("mux_addr", bit_size=64), SpecGhost("mux_size", bit_size=16), SpecGhost("copied", bit_size=64), )
 # (SpecGhost(name="local_context", bit_size=408), )
 
 

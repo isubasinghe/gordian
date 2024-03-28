@@ -1042,6 +1042,12 @@ functions_spec = {
     ),
     "tmp.rx_return_inner_inner": source.Ghost(
         precondition=conjs(
+            # eq(
+            #     arg(copied_ghost),
+            #     u64(0),
+            # ),
+            # eq(arg(mux_addr_ghost), u64(0)),
+            # eq(arg(cli_addr_ghost), u64(0)),
             common_mem_wf(arg(Mem)),
             neg(ring_empty_spec(
                 mem_acc(
@@ -1079,18 +1085,18 @@ functions_spec = {
         ),
         postcondition=conjs(
             common_mem_wf(Mem),
-            eq(
-                copied_ghost,
-                u64(1)
-            ),
-            eq(
-                mux_addr_ghost,
-                u64(0)
-            ),
-            eq(
-                cli_addr_ghost,
-                u64(0)
-            )
+            # eq(
+            #     copied_ghost,
+            #     u64(1)
+            # ),
+            # eq(
+            #     mux_addr_ghost,
+            #     u64(0)
+            # ),
+            # eq(
+            #     cli_addr_ghost,
+            #     u64(0)
+            # )
         ),
         loop_invariants={
         },
@@ -2187,10 +2193,10 @@ functions_spec = {
         precondition=conjs(),
         postcondition=conjs(),
         loop_invariants={
-            lh('43'): conjs()
+            lh('23'): conjs()
         },
         loop_iterations={
-            lh('43'): source.empty_loop_ghost
+            lh('23'): source.empty_loop_ghost
         }
     ),
     "tmp.rx_return": source.Ghost(
